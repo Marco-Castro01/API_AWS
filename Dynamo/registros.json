@@ -1,0 +1,33 @@
+[
+  {
+    "id": "001",
+    "cedula": "001",
+    "correo": "juan.perez@example.com",
+    "direccion": "Calle 123, Ciudad XYZ",
+    "fecha_actualizacion": "2024-09-22",
+    "fecha_registro": "2024-09-20",
+    "nombre": "Juan Pérez",
+    "telefono": "+584121234567"
+  },
+  {
+    "id": "002",
+    "cedula": "002",
+    "correo": "maria.gomez@example.com",
+    "direccion": "Avenida 456, Ciudad ABC",
+    "fecha_actualizacion": "2024-09-23",
+    "fecha_registro": "2024-09-21",
+    "nombre": "María Gómez",
+    "telefono": "+584123456789"
+  },
+  {
+    "id": "003",
+    "cedula": "003",
+    "correo": "luis.martinez@example.com",
+    "direccion": "Boulevard 789, Ciudad DEF",
+    "fecha_actualizacion": "2024-09-24",
+    "fecha_registro": "2024-09-22",
+    "nombre": "Luis Martínez",
+    "telefono": "+584124567890"
+  }
+
+]
