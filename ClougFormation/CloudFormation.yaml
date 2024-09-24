@@ -1,0 +1,270 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  # Crear rol Dev con permisos para DynamoDB
+  DevRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName: "Dev"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "lambda.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: "DynamoDBPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "dynamodb:*"
+                Resource: "*"
+
+  # Crear la tabla DynamoDB Cliente
+  ClienteTable:
+    Type: "AWS::DynamoDB::Table"
+    Properties:
+      TableName: "Cliente"
+      AttributeDefinitions:
+        - AttributeName: "id"
+          AttributeType: "S"  # Clave primaria
+        - AttributeName: "cedula"
+          AttributeType: "S"  # Clave de ordenamiento
+        - AttributeName: "nombre"
+          AttributeType: "S"  # Para el índice secundario
+      KeySchema:
+        - AttributeName: "id"
+          KeyType: "HASH"  # Clave primaria de la tabla
+        - AttributeName: "cedula"
+          KeyType: "RANGE"  # Clave de ordenamiento
+      BillingMode: "PAY_PER_REQUEST"
+      GlobalSecondaryIndexes:
+        - IndexName: "nombre-index"
+          KeySchema:
+            - AttributeName: "nombre"
+              KeyType: "HASH"
+          Projection:
+            ProjectionType: "ALL"
+
+  # Crear la función Lambda para insertar datos
+  InsertDataFunction:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Handler: "index.handler"
+      Role: !GetAtt DevRole.Arn
+      Code:
+        ZipFile: |
+          const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
+          const { DynamoDBDocumentClient, PutCommand } = require("@aws-sdk/lib-dynamodb");
+
+          const client = new DynamoDBClient({});
+          const docClient = DynamoDBDocumentClient.from(client);
+          const tableName = "Cliente";
+
+          exports.handler = async (event) => {
+              const clientes = [
+                  { id: "001", cedula: "001", correo: "juan.perez@example.com", direccion: "Calle 123, Ciudad XYZ", fecha_actualizacion: "2024-09-22", fecha_registro: "2024-09-20", nombre: "Juan Pérez", telefono: "+584121234567" },
+                  { id: "002", cedula: "002", correo: "maria.gomez@example.com", direccion: "Avenida 456, Ciudad ABC", fecha_actualizacion: "2024-09-23", fecha_registro: "2024-09-21", nombre: "María Gómez", telefono: "+584123456789" },
+                  { id: "003", cedula: "003", correo: "luis.martinez@example.com", direccion: "Boulevard 789, Ciudad DEF", fecha_actualizacion: "2024-09-24", fecha_registro: "2024-09-22", nombre: "Luis Martínez", telefono: "+584124567890" },
+              ];
+
+              for (const cliente of clientes) {
+                  const params = {
+                      TableName: tableName,
+                      Item: cliente,
+                  };
+
+                  try {
+                      await docClient.send(new PutCommand(params));
+                      console.log(`Inserted: ${cliente.nombre}`);
+                  } catch (err) {
+                      console.error("Error inserting data:", err);
+                  }
+              }
+
+              return {
+                  statusCode: 200,
+                  body: JSON.stringify('Data insertion complete!'),
+              };
+          };
+      Runtime: "nodejs20.x"
+      Timeout: 300
+
+  # Crear la función Lambda para obtener todos los clientes
+  GetAllClientsLambda:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Handler: "index.handler"
+      Role: !GetAtt DevRole.Arn
+      Code:
+        ZipFile: |
+          const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
+          const { DynamoDBDocumentClient, ScanCommand } = require("@aws-sdk/lib-dynamodb");
+
+          const client = new DynamoDBClient({});
+          const docClient = DynamoDBDocumentClient.from(client);
+          const tableName = "Cliente";
+
+          exports.handler = async (event) => {
+              let body;
+              let statusCode = 200;
+              const headers = {
+                  "Content-Type": "application/json",
+              };
+
+              try {
+                  const result = await docClient.send(new ScanCommand({ TableName: tableName }));
+
+                  if (!result.Items || result.Items.length === 0) {
+                      throw new Error("No items found in the table.");
+                  }
+
+                  body = result.Items;
+              } catch (err) {
+                  statusCode = 400;
+                  body = {
+                      error: err.name,
+                      message: err.message,
+                      details: err.stack,
+                  };
+              } finally {
+                  body = JSON.stringify(body);
+              }
+
+              return {
+                  statusCode,
+                  body,
+                  headers,
+              };
+          };
+      Runtime: "nodejs20.x"
+      Timeout: 300
+
+  # Crear la función Lambda para obtener un cliente por cédula
+  GetClientByCedulaLambda:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Handler: "index.handler"
+      Role: !GetAtt DevRole.Arn
+      Code:
+        ZipFile: |
+          const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
+          const { DynamoDBDocumentClient, GetCommand } = require("@aws-sdk/lib-dynamodb");
+
+          const client = new DynamoDBClient({});
+          const docClient = DynamoDBDocumentClient.from(client);
+          const tableName = "Cliente";
+
+          exports.handler = async (event) => {
+              let body;
+              let statusCode = 200;
+              const headers = {
+                  "Content-Type": "application/json",
+              };
+
+              try {
+                  const cedula = event.pathParameters.cedula;
+
+                  const params = {
+                      TableName: tableName,
+                      Key: {
+                          id: cedula,
+                          cedula: cedula,
+                      },
+                  };
+
+                  const data = await docClient.send(new GetCommand(params));
+
+                  if (!data.Item) {
+                      statusCode = 404;
+                      body = JSON.stringify({ message: 'Cliente no encontrado' });
+                  } else {
+                      body = JSON.stringify(data.Item);
+                  }
+
+              } catch (err) {
+                  statusCode = 500;
+                  body = JSON.stringify({
+                      error: err.name,
+                      message: err.message,
+                      details: err.stack,
+                  });
+              }
+
+              return {
+                  statusCode,
+                  body,
+                  headers,
+              };
+          };
+      Runtime: "nodejs20.x"
+      Timeout: 300
+
+  # Crear la función Lambda para obtener un cliente por nombre
+  GetClientByNameLambda:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Handler: "index.handler"
+      Role: !GetAtt DevRole.Arn
+      Code:
+        ZipFile: |
+          const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
+          const { DynamoDBDocumentClient, QueryCommand } = require("@aws-sdk/lib-dynamodb");
+
+          const client = new DynamoDBClient({});
+          const docClient = DynamoDBDocumentClient.from(client);
+          const tableName = "Cliente";
+
+          exports.handler = async (event) => {
+              let body;
+              let statusCode = 200;
+              const headers = {
+                  "Content-Type": "application/json",
+              };
+
+              try {
+                  const nombre = event.pathParameters.nombre;
+
+                  const params = {
+                      TableName: tableName,
+                      IndexName: "nombre-index",
+                      KeyConditionExpression: "nombre = :nombre",
+                      ExpressionAttributeValues: {
+                          ":nombre": nombre,
+                      },
+                  };
+
+                  const data = await docClient.send(new QueryCommand(params));
+
+                  if (data.Items.length === 0) {
+                      statusCode = 404;
+                      body = JSON.stringify({ message: 'Cliente no encontrado' });
+                  } else {
+                      body = JSON.stringify(data.Items);
+                  }
+
+              } catch (err) {
+                  statusCode = 500;
+                  body = JSON.stringify({
+                      error: err.name,
+                      message: err.message,
+                      details: err.stack,
+                  });
+              }
+
+              return {
+                  statusCode,
+                  body,
+                  headers,
+              };
+          };
+      Runtime: "nodejs20.x"
+      Timeout: 300
+
+  # Crear un Custom Resource para invocar la función Lambda para insertar datos
+  DataInsertion:
+    Type: "AWS::CloudFormation::CustomResource"
+    Properties:
+      ServiceToken: !GetAtt InsertDataFunction.Arn

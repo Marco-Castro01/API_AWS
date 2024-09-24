@@ -1,11 +1,11 @@
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, ScanCommand } from "@aws-sdk/lib-dynamodb";
+const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
+const { DynamoDBDocumentClient, ScanCommand } = require("@aws-sdk/lib-dynamodb");
 
 const client = new DynamoDBClient({});
-const dynamo = DynamoDBDocumentClient.from(client);
-const tableName = "Cliente";  // Cambia el nombre de la tabla según corresponda
+const docClient = DynamoDBDocumentClient.from(client);
+const tableName = "Cliente";
 
-export const handler = async (event) => {
+exports.handler = async (event) => {
     let body;
     let statusCode = 200;
     const headers = {
@@ -13,17 +13,13 @@ export const handler = async (event) => {
     };
 
     try {
-        const result = await dynamo.send(
-            new ScanCommand({
-                TableName: tableName, // Escanea todos los registros de la tabla
-            })
-        );
+        const result = await docClient.send(new ScanCommand({ TableName: tableName }));
 
         if (!result.Items || result.Items.length === 0) {
             throw new Error("No items found in the table.");
         }
 
-        body = result.Items; // Devuelve todos los registros
+        body = result.Items;
     } catch (err) {
         statusCode = 400;
         body = {

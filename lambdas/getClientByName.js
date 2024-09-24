@@ -1,11 +1,11 @@
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
+const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
+const { DynamoDBDocumentClient, QueryCommand } = require("@aws-sdk/lib-dynamodb");
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
-const tableName = "Cliente"; // Asegúrate de que el nombre de la tabla sea correcto
+const tableName = "Cliente";
 
-export const handler = async (event) => {
+exports.handler = async (event) => {
     let body;
     let statusCode = 200;
     const headers = {
@@ -13,13 +13,11 @@ export const handler = async (event) => {
     };
 
     try {
-        console.log("AQUI LLEGO 1");
-        const nombre = event.pathParameters.nombre; // Nombre del cliente
-        console.log("Cliente Nombre:", nombre);
+        const nombre = event.pathParameters.nombre;
 
         const params = {
             TableName: tableName,
-            IndexName: "nombre-index", // Asegúrate de que este índice esté creado en DynamoDB
+            IndexName: "nombre-index",
             KeyConditionExpression: "nombre = :nombre",
             ExpressionAttributeValues: {
                 ":nombre": nombre,
@@ -27,18 +25,16 @@ export const handler = async (event) => {
         };
 
         const data = await docClient.send(new QueryCommand(params));
-        console.log('Result:', JSON.stringify(data));
 
         if (data.Items.length === 0) {
-            statusCode = 404; // Cliente no encontrado
+            statusCode = 404;
             body = JSON.stringify({ message: 'Cliente no encontrado' });
         } else {
             body = JSON.stringify(data.Items);
         }
 
     } catch (err) {
-        console.error("Error:", err);
-        statusCode = 500; // Cambia a 500 para errores internos del servidor
+        statusCode = 500;
         body = JSON.stringify({
             error: err.name,
             message: err.message,
